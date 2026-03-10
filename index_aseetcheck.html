@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>資產快速盤點系統</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        #reader { width: 100%; max-width: 500px; margin: auto; }
+        #result { margin-top: 20px; font-weight: bold; color: blue; }
+    </style>
+</head>
+<body>
+    <h2>資產掃描盤點</h2>
+    <div id="reader"></div>
+    <div id="result">準備掃描...</div>
+
+    <script>
+        function onScanSuccess(decodedText) {
+            document.getElementById('result').innerText = "處理中，請稍候...";
+            
+            // 將掃描到的網址傳給 Google Apps Script
+            fetch('https://script.google.com/macros/s/AKfycbxCJMg2l-9_SjnnzU1GJ7HMBcEnvsyzd5OzoFq1_B2k_5TAg2MpkCY2im0icMN5YCxvTg/exec', {
+                method: 'POST',
+                body: JSON.stringify({ url: decodedText })
+            })
+            .then(res => res.text())
+            .then(data => {
+                document.getElementById('result').innerText = data;
+                // 成功後震動一下 (支援部分手機)
+                if (navigator.vibrate) navigator.vibrate(200);
+            })
+            .catch(err => {
+                document.getElementById('result').innerText = "傳送失敗：" + err;
+            });
+        }
+
+        var html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        html5QrcodeScanner.render(onScanSuccess);
+    </script>
+</body>
+</html>
