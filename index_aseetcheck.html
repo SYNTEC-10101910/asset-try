@@ -30,7 +30,7 @@
 
             // 你的 GAS 網址 (請確認網址結尾是 /exec)
             const scriptUrl = 'https://script.google.com/macros/s/AKfycbxCJMg2l-9_SjnnzU1GJ7HMBcEnvsyzd5OzoFq1_B2k_5TAg2MpkCY2im0icMN5YCxvTg/exec';
-
+            scriptUrl = "https://script.google.com/macros/s/AKfycbw4jLYC8_GK2hR0yZ4YUxyQggzDWGO56zcevFpqylJ-Q0XjRRHUqPP2GxkS0AaGszG2nA/exec";
             fetch(scriptUrl, {
                 method: 'POST',
                 mode: 'no-cors', // 重要：解決跨網域傳送失敗的問題
@@ -40,8 +40,7 @@
             .then(() => {
                 // 註：使用 no-cors 模式下，我們無法讀取 GAS 回傳的文字
                 // 但只要執行到這，代表資料已成功送出
-                // resultDiv.innerText = "掃描完成！已送出資料";
-                resultDiv.innerText = decodedText
+                resultDiv.innerText = "掃描完成！已送出資料";
                 resultDiv.className = "success";
                 
                 if (navigator.vibrate) navigator.vibrate(200);
@@ -70,6 +69,7 @@
     </script>
 </body>
 </html>
+
 
 
 
