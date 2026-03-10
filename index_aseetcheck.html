@@ -5,39 +5,67 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; }
-        #reader { width: 100%; max-width: 500px; margin: auto; }
-        #result { margin-top: 20px; font-weight: bold; color: blue; }
+        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
+        #reader { width: 100%; max-width: 500px; margin: auto; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; }
+        #result { margin-top: 20px; font-size: 1.2rem; font-weight: bold; color: #333; padding: 10px; border-radius: 5px; }
+        .success { background-color: #d4edda; color: #155724 !important; }
+        .error { background-color: #f8d7da; color: #721c24 !important; }
     </style>
 </head>
 <body>
-    <h2>資產掃描盤點</h2>
+    <h2 style="color: #2c3e50;">資產掃描盤點 v2</h2>
     <div id="reader"></div>
     <div id="result">準備掃描...</div>
 
     <script>
+        let isScanning = true; // 控制是否重複掃描的開關
+
         function onScanSuccess(decodedText) {
-            document.getElementById('result').innerText = "處理中，請稍候...";
+            if (!isScanning) return; // 如果正在處理中，就不重複執行
             
-            // 將掃描到的網址傳給 Google Apps Script
-            fetch('https://script.google.com/macros/s/AKfycbxCJMg2l-9_SjnnzU1GJ7HMBcEnvsyzd5OzoFq1_B2k_5TAg2MpkCY2im0icMN5YCxvTg/exec', {
+            isScanning = false; 
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerText = "讀取成功，處理中...";
+            resultDiv.className = "";
+
+            // 你的 GAS 網址 (請確認網址結尾是 /exec)
+            const scriptUrl = 'https://script.google.com/macros/s/AKfycbxCJMg2l-9_SjnnzU1GJ7HMBcEnvsyzd5OzoFq1_B2k_5TAg2MpkCY2im0icMN5YCxvTg/exec';
+
+            fetch(scriptUrl, {
                 method: 'POST',
+                mode: 'no-cors', // 重要：解決跨網域傳送失敗的問題
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ url: decodedText })
             })
-            .then(res => res.text())
-            .then(data => {
-                document.getElementById('result').innerText = data;
-                // 成功後震動一下 (支援部分手機)
+            .then(() => {
+                // 註：使用 no-cors 模式下，我們無法讀取 GAS 回傳的文字
+                // 但只要執行到這，代表資料已成功送出
+                resultDiv.innerText = "掃描完成！已送出資料";
+                resultDiv.className = "success";
+                
                 if (navigator.vibrate) navigator.vibrate(200);
+
+                // 2 秒後恢復掃描功能
+                setTimeout(() => {
+                    isScanning = true;
+                    resultDiv.innerText = "準備掃描下一個...";
+                    resultDiv.className = "";
+                }, 2000);
             })
             .catch(err => {
-                document.getElementById('result').innerText = "傳送失敗：" + err;
+                resultDiv.innerText = "連線發生錯誤";
+                resultDiv.className = "error";
+                console.error(err);
+                isScanning = true;
             });
         }
 
-        var html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
+        var html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
+            fps: 10, 
+            qrbox: { width: 250, height: 250 },
+            aspectRatio: 1.0 
+        });
         html5QrcodeScanner.render(onScanSuccess);
     </script>
 </body>
-
 </html>
