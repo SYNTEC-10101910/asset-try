@@ -40,7 +40,8 @@
             .then(() => {
                 // 註：使用 no-cors 模式下，我們無法讀取 GAS 回傳的文字
                 // 但只要執行到這，代表資料已成功送出
-                resultDiv.innerText = "掃描完成！已送出資料";
+                // resultDiv.innerText = "掃描完成！已送出資料";
+                resultDiv.innerText = decodedText
                 resultDiv.className = "success";
                 
                 if (navigator.vibrate) navigator.vibrate(200);
@@ -69,5 +70,6 @@
     </script>
 </body>
 </html>
+
 
 
