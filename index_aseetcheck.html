@@ -1,99 +1,130 @@
 <!DOCTYPE html>
-<html>
+<html lang="zh-TW">
 <head>
-    <title>資產快速盤點系統</title>
+    <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資產盤點系統 v3</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; padding: 20px; background-color: #f4f4f9; }
-        #reader { width: 100%; max-width: 500px; margin: auto; border: 2px solid #ddd; border-radius: 8px; overflow: hidden; }
-        #result { margin-top: 20px; font-size: 1.2rem; font-weight: bold; color: #333; padding: 10px; border-radius: 5px; }
-        .success { background-color: #d4edda; color: #155724 !important; }
-        .error { background-color: #f8d7da; color: #721c24 !important; }
+        body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; text-align: center; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { color: #333; }
+        
+        /* 登入區塊 */
+        #login-section { margin: 20px 0; }
+        input { width: 80%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; }
+        .btn-blue { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        
+        /* 清單區塊 */
+        #asset-list-section { display: none; margin-top: 20px; text-align: left; }
+        .asset-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; }
+        .status-done { color: #28a745; font-weight: bold; }
+        .status-pending { color: #dc3545; }
+        
+        /* 掃描區塊 */
+        #reader { width: 100%; margin-top: 20px; display: none; }
+        #result { margin-top: 15px; font-weight: bold; color: #007bff; }
+        .btn-green { background: #28a745; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; width: 100%; margin-top: 10px; }
     </style>
 </head>
 <body>
-    <h2 style="color: #2c3e50;">資產掃描盤點 v2</h2>
+
+<div class="container">
+    <h2>資產盤點系統</h2>
+
+    <div id="login-section">
+        <p>請輸入保管人工號以獲取清單</p>
+        <input type="text" id="empId" placeholder="例如: 10109999">
+        <br>
+        <button class="btn-blue" onclick="fetchAssets()">查詢資產清單</button>
+    </div>
+
+    <div id="asset-list-section">
+        <h3>待盤點清單</h3>
+        <div id="list-content"></div>
+        <button class="btn-green" id="start-btn" onclick="startScanner()">開始掃描盤點</button>
+    </div>
+
     <div id="reader"></div>
-    <div id="result">準備掃描...</div>
+    <div id="result"></div>
+</div>
 
-    <script>
-        let isScanning = true; // 控制是否重複掃描的開關
+<script>
+    // ⚠️ 請務必換成你最新的 GAS 部署網址 (需包含 /exec)
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbzl4_MrgPAcun3IpHcH5bbtLyMtw6dzpjYN6TrD73YT4ecgSYemZGoPOjuBkUmqTUgBzg/exec'; 
 
-        function onScanSuccess(decodedText) {
-            if (!isScanning) return; // 如果正在處理中，就不重複執行
+    let html5QrcodeScanner;
+
+    // 1. 向 GAS 查詢名下資產
+    function fetchAssets() {
+        const empId = document.getElementById('empId').value.trim();
+        if (!empId) { alert("請輸入工號！"); return; }
+
+        document.getElementById('list-content').innerHTML = "查詢中...";
+        
+        fetch(`${scriptUrl}?empId=${empId}`)
+        .then(res => res.json())
+        .then(data => {
+            const listSection = document.getElementById('asset-list-section');
+            const listContent = document.getElementById('list-content');
+            listContent.innerHTML = "";
             
-            isScanning = false; 
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerText = "讀取成功，處理中...";
-            resultDiv.className = "";
+            if (data.length === 0) {
+                listContent.innerHTML = "<p style='color:red'>查無資產，請確認工號是否正確。</p>";
+                listSection.style.display = "block";
+                document.getElementById('start-btn').style.display = "none";
+            } else {
+                data.forEach(item => {
+                    const isDone = item.status === "已盤點";
+                    listContent.innerHTML += `
+                        <div class="asset-item">
+                            <div>
+                                <strong>${item.id}</strong><br>
+                                <small style="color:gray">${item.name}</small>
+                            </div>
+                            <div class="${isDone ? 'status-done' : 'status-pending'}">
+                                ${isDone ? '✅ 已盤點' : '⭕ 未盤點'}
+                            </div>
+                        </div>`;
+                });
+                listSection.style.display = "block";
+                document.getElementById('start-btn').style.display = "block";
+            }
+        })
+        .catch(err => alert("連線錯誤，請確認網址是否正確。"));
+    }
 
-            // 你的 GAS 網址 (請確認網址結尾是 /exec)
-            const scriptUrl = "https://script.google.com/macros/s/AKfycbzl4_MrgPAcun3IpHcH5bbtLyMtw6dzpjYN6TrD73YT4ecgSYemZGoPOjuBkUmqTUgBzg/exec";
-            fetch(`${scriptUrl}?empId=${empId}`)
-                .then(res => res.json())
-                .then(data => {
-                    const listContent = document.getElementById('list-content');
-                    listContent.innerHTML = "";
-                    
-                    if (data.length === 0) {
-                        listContent.innerHTML = "<p>查無資產，請確認工號是否正確。</p>";
-                    } else {
-                        data.forEach(item => {
-                            const statusClass = item.status === "已盤點" ? "done" : "pending";
-                            const statusText = item.status === "已盤點" ? "✅" : "⭕";
-                            listContent.innerHTML += `
-                                <div class="asset-item" style="border-bottom: 1px solid #ddd; padding: 10px 0;">
-                                    <div style="text-align:left">
-                                        <strong>${item.id}</strong> <br>
-                                        <small style="color:#666">${item.name}</small>
-                                    </div>
-                                    <div class="${statusClass}">${statusText}</div>
-                                </div>`;
-                            });
-                        }
-                    });
-            
-            .then(() => {
-                // 註：使用 no-cors 模式下，我們無法讀取 GAS 回傳的文字
-                // 但只要執行到這，代表資料已成功送出
-                resultDiv.innerText = "掃描完成！已送出資料";
-                resultDiv.className = "success";
-                
-                if (navigator.vibrate) navigator.vibrate(200);
-
-                // 2 秒後恢復掃描功能
-                setTimeout(() => {
-                    isScanning = true;
-                    resultDiv.innerText = "準備掃描下一個...";
-                    resultDiv.className = "";
-                }, 2000);
-            })
-            .catch(err => {
-                resultDiv.innerText = "連線發生錯誤";
-                resultDiv.className = "error";
-                console.error(err);
-                isScanning = true;
-            });
-        }
-
-        var html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-            fps: 10, 
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0 
-        });
+    // 2. 啟動掃描器
+    function startScanner() {
+        document.getElementById('reader').style.display = "block";
+        document.getElementById('start-btn').style.display = "none";
+        
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
         html5QrcodeScanner.render(onScanSuccess);
-    </script>
+    }
+
+    // 3. 掃描成功後傳送 POST 更新
+    function onScanSuccess(decodedText) {
+        document.getElementById('result').innerText = "掃描成功，處理中...";
+        
+        fetch(scriptUrl, {
+            method: "POST",
+            mode: "no-cors", // 配合 Google Apps Script 的跨域限制
+            body: JSON.stringify({ url: decodedText })
+        })
+        .then(() => {
+            document.getElementById('result').innerText = "更新完成！正在重新整理清單...";
+            // 掃描完成後，延遲一秒自動重新整理清單
+            setTimeout(() => {
+                fetchAssets();
+                document.getElementById('result').innerText = "";
+            }, 1000);
+        })
+        .catch(err => {
+            document.getElementById('result').innerText = "更新失敗，請再試一次。";
+        });
+    }
+</script>
+
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
