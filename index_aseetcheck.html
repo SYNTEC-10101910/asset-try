@@ -30,12 +30,30 @@
 
             // 你的 GAS 網址 (請確認網址結尾是 /exec)
             const scriptUrl = "https://script.google.com/macros/s/AKfycbzXyNABt7rWM9JImg0wH0BNCn6Fu7XaJ7iNDxqcgm9TvJnMnYy5pdB3Re7B48lgD-ntXQ/exec";
-            fetch(scriptUrl, {
-                method: 'POST',
-                mode: 'no-cors', // 重要：解決跨網域傳送失敗的問題
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ url: decodedText })
-            })
+            fetch(`${scriptUrl}?empId=${empId}`)
+                .then(res => res.json())
+                .then(data => {
+                    const listContent = document.getElementById('list-content');
+                    listContent.innerHTML = "";
+                    
+                    if (data.length === 0) {
+                        listContent.innerHTML = "<p>查無資產，請確認工號是否正確。</p>";
+                    } else {
+                        data.forEach(item => {
+                            const statusClass = item.status === "已盤點" ? "done" : "pending";
+                            const statusText = item.status === "已盤點" ? "✅" : "⭕";
+                            listContent.innerHTML += `
+                                <div class="asset-item" style="border-bottom: 1px solid #ddd; padding: 10px 0;">
+                                    <div style="text-align:left">
+                                        <strong>${item.id}</strong> <br>
+                                        <small style="color:#666">${item.name}</small>
+                                    </div>
+                                    <div class="${statusClass}">${statusText}</div>
+                                </div>`;
+                            });
+                        }
+                    });
+            
             .then(() => {
                 // 註：使用 no-cors 模式下，我們無法讀取 GAS 回傳的文字
                 // 但只要執行到這，代表資料已成功送出
@@ -68,6 +86,7 @@
     </script>
 </body>
 </html>
+
 
 
 
