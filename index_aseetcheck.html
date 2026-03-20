@@ -96,13 +96,26 @@
 
     // 2. 啟動掃描器
     function startScanner() {
-        document.getElementById('reader').style.display = "block";
-        document.getElementById('start-btn').style.display = "none";
-        
-        html5QrcodeScanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 250 });
-        html5QrcodeScanner.render(onScanSuccess);
-    }
+    document.getElementById('reader').style.display = "block";
+    document.getElementById('start-btn').style.display = "none";
+    
+    // 設定掃描器參數
+    const config = { 
+        fps: 20,                // 提高每秒掃描次數 (建議 20-30)
+        qrbox: { width: 250, height: 250 }, // 固定掃描框大小，或用 function 動態計算
+        aspectRatio: 1.0,       // 強制 1:1 的掃描比例，有助於對焦
+        // 核心設定：嘗試請求高解析度鏡頭
+        videoConstraints: {
+            facingMode: "environment", // 強制使用後鏡頭
+            width: { ideal: 1920 },    // 理想寬度
+            height: { ideal: 1080 }    // 理想高度
+        }
+    };
 
+    html5QrcodeScanner = new Html5QrcodeScanner("reader", config, /* verbose= */ false);
+    html5QrcodeScanner.render(onScanSuccess);
+}
+    
     // 3. 掃描成功後傳送 POST 更新
     function onScanSuccess(decodedText) {
         document.getElementById('result').innerText = "掃描成功，處理中...";
