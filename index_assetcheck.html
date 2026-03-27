@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>資產盤點系統 v3</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <style>
+        body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; text-align: center; }
+        .container { max-width: 500px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h2 { color: #333; }
+        
+        /* 登入區塊 */
+        #login-section { margin: 20px 0; }
+        input { width: 80%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; }
+        .btn-blue { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; }
+        
+        /* 清單區塊 */
+        #asset-list-section { display: none; margin-top: 20px; text-align: left; }
+        .asset-item { display: flex; justify-content: space-between; align-items: center; padding: 12px; border-bottom: 1px solid #eee; }
+        .status-done { color: #28a745; font-weight: bold; }
+        .status-pending { color: #dc3545; }
+        
+        /* 掃描區塊 */
+        #reader { width: 100%; margin-top: 20px; display: none; }
+        #result { margin-top: 15px; font-weight: bold; color: #007bff; }
+        .btn-green { background: #28a745; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; width: 100%; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>資產盤點系統</h2>
+
+    <div id="login-section">
+        <p>請輸入保管人工號以獲取清單</p>
+        <input type="text" id="empId" placeholder="例如: 10109999">
+        <br>
+        <button class="btn-blue" onclick="fetchAssets()">查詢資產清單</button>
+    </div>
+
+    <div id="asset-list-section">
+        <h3>待盤點清單</h3>
+        <div id="list-content"></div>
+        <button class="btn-green" id="start-btn" onclick="startScanner()">開始掃描盤點</button>
+    </div>
+
+    <div id="reader"></div>
+    <div id="result"></div>
+</div>
+
+<script>
+    // ⚠️ 請務必換成你最新的 GAS 部署網址 (需包含 /exec)
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbzl4_MrgPAcun3IpHcH5bbtLyMtw6dzpjYN6TrD73YT4ecgSYemZGoPOjuBkUmqTUgBzg/exec'; 
+
+    let html5QrcodeScanner;
+
+    // 1. 向 GAS 查詢名下資產
+    function fetchAssets() {
+        const empId = document.getElementById('empId').value.trim();
+        if (!empId) { alert("請輸入工號！"); return; }
+
+        document.getElementById('list-content').innerHTML = "查詢中...";
+        
+        fetch(`${scriptUrl}?empId=${empId}`)
+        .then(res => res.json())
+        .then(data => {
+            const listSection = document.getElementById('asset-list-section');
+            const listContent = document.getElementById('list-content');
+            listContent.innerHTML = "";
+            
+            if (data.length === 0) {
+                listContent.innerHTML = "<p style='color:red'>查無資產，請確認工號是否正確。</p>";
+                listSection.style.display = "block";
+                document.getElementById('start-btn').style.display = "none";
+            } else {
+                // 在 data.forEach(item => { ... }) 裡面修改內容：
+                    data.forEach(item => {
+                        const isDone = item.status === "已盤點" || item.status === "目視盤點";
+                        const statusClass = isDone ? 'status-done' : 'status-pending';
+                        const statusText = isDone ? `✅ ${item.status}` : '⭕ 未盤點';
+
+                    listContent.innerHTML += `
+                    <div class="asset-item" style="border-bottom: 1px solid #eee; padding: 15px 0;">
+                        <div style="flex: 1;">
+                            <strong>${item.id}</strong><br>
+                            <small style="color:gray">${item.name}</small>
+                        </div>
+                        <div style="text-align: right;">
+                            <div class="${statusClass}" style="margin-bottom: 5px;">${statusText}</div>
+                                ${!isDone ? `<button onclick="manualCheck('${item.id}')" style="font-size: 12px; padding: 5px 10px; background: #6c757d; color: white; border: none; border-radius: 4px; cursor: pointer;">目視盤點</button>` : ''}
+                        </div>
+                    </div>`;
+                    });
+
+                // 新增手動確認的函式
+                function manualCheck(assetId) {
+                    if (!confirm(`確定要將資產 ${assetId} 設為「目視盤點」嗎？`)) return;
+
+                    document.getElementById('result').innerText = "處理中...";
+    
+                    fetch(scriptUrl, {
+                        method: "POST",
+                        mode: "no-cors",
+                        body: JSON.stringify({ 
+                            url: assetId,      // 這裡直接傳送資產編號
+                            type: "manual"     // 新增一個類型標記
+                        })
+                    })
+                    .then(() => {
+                        document.getElementById('result').innerText = "手動盤點成功！";
+                        setTimeout(fetchAssets, 1000);
+                    });
+                }
+                listSection.style.display = "block";
+                document.getElementById('start-btn').style.display = "block";
+            }
+        })
+        .catch(err => alert("連線錯誤，請確認網址是否正確。"));
+    }
+
+    // 2. 啟動掃描器
+    function startScanner() {
+    document.getElementById('reader').style.display = "block";
+    document.getElementById('start-btn').style.display = "none";
+    
+    // 設定掃描器參數
+    const config = { 
+        fps: 20,                // 提高每秒掃描次數 (建議 20-30)
+        qrbox: { width: 250, height: 250 }, // 固定掃描框大小，或用 function 動態計算
+        aspectRatio: 1.0,       // 強制 1:1 的掃描比例，有助於對焦
+        // 核心設定：嘗試請求高解析度鏡頭
+        videoConstraints: {
+            facingMode: "environment", // 強制使用後鏡頭
+            width: { ideal: 1920 },    // 理想寬度
+            height: { ideal: 1080 }    // 理想高度
+        }
+    };
+
+    html5QrcodeScanner = new Html5QrcodeScanner("reader", config, /* verbose= */ false);
+    html5QrcodeScanner.render(onScanSuccess);
+}
+    
+    // 3. 掃描成功後傳送 POST 更新
+    function onScanSuccess(decodedText) {
+        document.getElementById('result').innerText = "掃描成功，處理中...";
+        
+        fetch(scriptUrl, {
+            method: "POST",
+            mode: "no-cors", // 配合 Google Apps Script 的跨域限制
+            body: JSON.stringify({ url: decodedText })
+        })
+        .then(() => {
+            document.getElementById('result').innerText = "更新完成！正在重新整理清單...";
+            // 掃描完成後，延遲一秒自動重新整理清單
+            setTimeout(() => {
+                fetchAssets();
+                document.getElementById('result').innerText = "";
+            }, 1000);
+        })
+        .catch(err => {
+            document.getElementById('result').innerText = "更新失敗，請再試一次。";
+        });
+    }
+</script>
+
+</body>
+</html>
