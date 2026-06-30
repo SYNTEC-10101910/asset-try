@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>資產盤點系統 v3.3</title>
+    <title>資產盤點系統 v3.4</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; text-align: center; }
@@ -20,6 +20,14 @@
         #reader { width: 100%; margin-top: 20px; display: none; border-radius: 10px; overflow: hidden; background-color: #000; }
         #result { margin-top: 15px; font-weight: bold; color: #007bff; min-height: 20px; }
         .btn-green { background: #28a745; color: white; border: none; padding: 15px; border-radius: 8px; font-size: 18px; width: 100%; margin-top: 20px; cursor: pointer; }
+
+        /* 💡 核心修改：利用 CSS 強行隱藏套件內建的鏡頭選擇下拉選單與權限請求按鈕 */
+        #reader__camera_selection {
+            display: none !important;
+        }
+        #reader button {
+            /* 如果想保留關閉相機等必要按鈕，只隱藏特定的切換鈕，可搭配上面選單隱藏 */
+        }
     </style>
 </head>
 <body>
@@ -67,8 +75,6 @@
             } else {
                 data.forEach(item => {
                     const isDone = (item.status === "已盤點" || item.status === "目視盤點");
-                    
-                    // 新增顯示：如果地點欄位是空的，就顯示「未填寫」
                     const locationText = item.location ? item.location : "未填寫";
 
                     listContent.innerHTML += `
@@ -98,17 +104,24 @@
         }
     }
 
+    // 2. 啟動掃描器（優化引導）
     function startScanner() {
         const readerDiv = document.getElementById('reader');
         readerDiv.style.display = "block"; 
         document.getElementById('start-btn').style.display = "none";
         
-        html5QrcodeScanner = new Html5QrcodeScanner("reader", { 
-            fps: 20, 
+        // 建立設定檔：強制要求後置鏡頭、提高 FPS 改善對焦
+        const config = { 
+            fps: 25, 
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
-            videoConstraints: { facingMode: "environment" } 
-        }, false);
+            // 💡 透過 JavaScript 配置直接鎖定後置鏡頭 (environment)
+            videoConstraints: { 
+                facingMode: { exact: "environment" } 
+            }
+        };
+
+        html5QrcodeScanner = new Html5QrcodeScanner("reader", config, false);
 
         html5QrcodeScanner.render(
             (text) => sendDataToGas(text, "scan"),
@@ -144,3 +157,4 @@
 
 </body>
 </html>
+
