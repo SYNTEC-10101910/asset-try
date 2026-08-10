@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>資產盤點系統 v3.4</title>
+    <title>資產盤點系統 v4.0</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
         body { font-family: -apple-system, sans-serif; background-color: #f8f9fa; margin: 0; padding: 20px; text-align: center; }
@@ -13,21 +13,27 @@
         input { width: 80%; padding: 12px; font-size: 16px; border: 1px solid #ddd; border-radius: 8px; margin-bottom: 10px; }
         .btn-blue { background: #007bff; color: white; border: none; padding: 12px 24px; border-radius: 8px; font-size: 16px; cursor: pointer; }
         #asset-list-section { display: none; margin-top: 20px; text-align: left; }
-        .asset-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #eee; }
+        
+        .asset-item { padding: 15px 0; border-bottom: 1px solid #eee; }
+        .asset-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        
+        /* 各種狀態標籤的樣式 */
         .status-done { color: #28a745; font-weight: bold; }
-        .status-pending { color: #dc3545; font-weight: bold; }
-        .btn-manual { background: #6c757d; color: white; border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; }
+        .status-change { color: #ffc107; font-weight: bold; }
+        .status-scrap { color: #dc3545; font-weight: bold; }
+        .status-pending { color: #6c757d; font-weight: bold; }
+        
+        /* 操作按鈕群組 */
+        .action-btns { margin-top: 10px; display: flex; gap: 8px; justify-content: flex-end; }
+        .btn-action { border: none; padding: 6px 12px; border-radius: 6px; font-size: 13px; cursor: pointer; color: white; }
+        .btn-manual { background: #17a2b8; }
+        .btn-change { background: #ffc107; color: #333; }
+        .btn-scrap { background: #dc3545; }
+        
         #reader { width: 100%; margin-top: 20px; display: none; border-radius: 10px; overflow: hidden; background-color: #000; }
+        #reader__camera_selection { display: none !important; } /* 隱藏多餘的鏡頭下拉選單 */
         #result { margin-top: 15px; font-weight: bold; color: #007bff; min-height: 20px; }
         .btn-green { background: #28a745; color: white; border: none; padding: 15px; border-radius: 8px; font-size: 18px; width: 100%; margin-top: 20px; cursor: pointer; }
-
-        /* 💡 核心修改：利用 CSS 強行隱藏套件內建的鏡頭選擇下拉選單與權限請求按鈕 */
-        #reader__camera_selection {
-            display: none !important;
-        }
-        #reader button {
-            /* 如果想保留關閉相機等必要按鈕，只隱藏特定的切換鈕，可搭配上面選單隱藏 */
-        }
     </style>
 </head>
 <body>
@@ -45,7 +51,7 @@
     <div id="asset-list-section">
         <h3>您的待盤點清單</h3>
         <div id="list-content"></div>
-        <button class="btn-green" id="start-btn" onclick="startScanner()">📷 開始掃描 QR Code</button>
+        <button class="btn-green" id="start-btn" onclick="startScanner()">📷 開始掃描 QR Code 盤點</button>
     </div>
 
     <div id="reader"></div> 
@@ -54,7 +60,7 @@
 
 <script>
     // ⚠️ 這裡請填入您最新的 GAS 部署網址
-    const scriptUrl = 'https://script.google.com/macros/s/AKfycbwO8qV46OoziSMGDHKQo4EuewYVxB2HCVpEaohx99X7fIPb80Aa6TP9MnGwSJ2o49o8Gw/exec'; 
+    const scriptUrl = 'https://script.google.com/macros/s/AKfycbyRIIunShCGbXyBKpWEuAFIEuOe8G2Sa1LULKoM_hqRLPmpIo3oMqZOPt3miGQ5cFCFUQ/exec'; 
 
     let html5QrcodeScanner;
 
@@ -74,22 +80,45 @@
                 listContent.innerHTML = "<p style='color:red'>查無資產，請確認工號。</p>";
             } else {
                 data.forEach(item => {
-                    const isDone = (item.status === "已盤點" || item.status === "目視盤點");
+                    const status = item.status ? item.status.trim() : "";
+                    
+                    // 判斷是否已經處理過（已盤點 / 目視盤點 / 需異動 / 需報廢）
+                    const isProcessed = ["已盤點", "目視盤點", "需異動", "需報廢"].includes(status);
                     const locationText = item.location ? item.location : "未填寫";
 
+                    // 依狀態決定顯示標籤的文字與顏色
+                    let statusHtml = "";
+                    if (status === "已盤點" || status === "目視盤點") {
+                        statusHtml = `<span class="status-done">✅ ${status}</span>`;
+                    } else if (status === "需異動") {
+                        statusHtml = `<span class="status-change">⚠️ 需異動</span>`;
+                    } else if (status === "需報廢") {
+                        statusHtml = `<span class="status-scrap">❌ 需報廢</span>`;
+                    } else {
+                        statusHtml = `<span class="status-pending">⭕ 未盤點</span>`;
+                    }
+
+                    // 組合 HTML：若已處理則只顯示狀態標籤，不再顯示操作按鈕
                     listContent.innerHTML += `
                         <div class="asset-item">
-                            <div style="flex:1; padding-right: 10px;">
-                                <strong>${item.id}</strong><br>
-                                <span style="font-size: 14px; color:#333;">${item.name}</span><br>
-                                <small style="color:#888;">📍 地點: ${locationText}</small>
-                            </div>
-                            <div style="text-align:right; min-width: 85px;">
-                                <div class="${isDone ? 'status-done' : 'status-pending'}" style="margin-bottom:5px;">
-                                    ${isDone ? '✅ ' + item.status : '⭕ 未盤點'}
+                            <div class="asset-header">
+                                <div style="flex:1; padding-right: 10px;">
+                                    <strong>${item.id}</strong><br>
+                                    <span style="font-size: 14px; color:#333;">${item.name}</span><br>
+                                    <small style="color:#888;">📍 地點: ${locationText}</small>
                                 </div>
-                                ${!isDone ? `<button class="btn-manual" onclick="manualCheck('${item.id}')">目視盤點</button>` : ''}
+                                <div style="text-align:right;">
+                                    ${statusHtml}
+                                </div>
                             </div>
+                            
+                            ${!isProcessed ? `
+                            <div class="action-btns">
+                                <button class="btn-action btn-manual" onclick="processAsset('${item.id}', 'manual')">目視盤點</button>
+                                <button class="btn-action btn-change" onclick="processAsset('${item.id}', 'change')">異動</button>
+                                <button class="btn-action btn-scrap" onclick="processAsset('${item.id}', 'scrap')">報廢</button>
+                            </div>
+                            ` : ''}
                         </div>`;
                 });
             }
@@ -98,24 +127,27 @@
         .catch(err => alert("無法連線系統，請確認 HTTPS 與網路。"));
     }
 
-    function manualCheck(assetId) {
-        if (confirm("確認資產 [" + assetId + "] 已經由目視確認無誤？")) {
-            sendDataToGas(assetId, "manual");
+    // 處理各種單項點擊操作 (目視 / 異動 / 報廢)
+    function processAsset(assetId, type) {
+        let confirmMsg = "";
+        if (type === "manual") confirmMsg = `確認資產 [${assetId}] 已經由目視確認無誤（目視盤點）？`;
+        if (type === "change") confirmMsg = `確認資產 [${assetId}] 需要申請「異動」？`;
+        if (type === "scrap") confirmMsg = `確認資產 [${assetId}] 需要申請「報廢」？`;
+
+        if (confirm(confirmMsg)) {
+            sendDataToGas(assetId, type);
         }
     }
 
-    // 2. 啟動掃描器（優化引導）
     function startScanner() {
         const readerDiv = document.getElementById('reader');
         readerDiv.style.display = "block"; 
         document.getElementById('start-btn').style.display = "none";
         
-        // 建立設定檔：強制要求後置鏡頭、提高 FPS 改善對焦
         const config = { 
             fps: 25, 
             qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
-            // 💡 透過 JavaScript 配置直接鎖定後置鏡頭 (environment)
             videoConstraints: { 
                 facingMode: { exact: "environment" } 
             }
@@ -138,14 +170,21 @@
             body: JSON.stringify({ url: content, type: type })
         })
         .then(() => {
-            document.getElementById('result').innerText = (type === "manual" ? "目視盤點成功！" : "掃描成功！");
+            let msg = "操作成功！";
+            if (type === "scan") msg = "掃描盤點成功！";
+            if (type === "manual") msg = "目視盤點成功！";
+            if (type === "change") msg = "標記需異動成功！";
+            if (type === "scrap") msg = "標記需報廢成功！";
+
+            document.getElementById('result').innerText = msg;
+            
             if (type === "scan" && html5QrcodeScanner) {
                 html5QrcodeScanner.clear(); 
                 document.getElementById('reader').style.display = "none";
                 document.getElementById('start-btn').style.display = "block";
             }
             setTimeout(() => {
-                fetchAssets();
+                fetchAssets(); // 重新整理清單
                 document.getElementById('result').innerText = "";
             }, 1000);
         })
